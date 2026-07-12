@@ -1,0 +1,36 @@
+name: Build & Release
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: swift build -c release
+
+      - name: Package .app
+        run: ./make-app.sh
+
+      - name: Zip
+        run: ditto -c -k --keepParent "Duometer.app" "Duometer.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Duometer
+          path: Duometer.zip
+
+      - name: Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" "Duometer.zip" \
+            --title "${GITHUB_REF_NAME}" --generate-notes
