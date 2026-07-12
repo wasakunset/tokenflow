@@ -365,6 +365,7 @@ struct ProviderCard: View {
     var onRetry: () -> Void
 
     @ObservedObject private var oauth = OAuthManager.shared
+    @State private var sparklineWeek = false
 
     private var isStale: Bool { usage.note != nil }
 
@@ -421,10 +422,14 @@ struct ProviderCard: View {
 
             if let session = usage.windows.first {
                 let history = UsageHistory.shared.samples(
-                    UsageHistory.key(usage.name, session), last: 24 * 3600
+                    UsageHistory.key(usage.name, session),
+                    last: sparklineWeek ? 7 * 24 * 3600 : 24 * 3600
                 )
                 if history.count >= 2 {
                     Sparkline(samples: history, tint: tint)
+                        .contentShape(Rectangle())
+                        .onTapGesture { sparklineWeek.toggle() }
+                        .help(sparklineWeek ? "Last 7 days — click for 24h" : "Last 24 hours — click for 7d")
                 }
             }
 
@@ -520,7 +525,6 @@ struct Sparkline: View {
             .stroke(tint.opacity(0.75), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
         }
         .frame(width: 54, height: 14)
-        .help("Last 24 hours")
     }
 }
 
