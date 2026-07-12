@@ -23,7 +23,7 @@ struct ClaudeProvider {
             if status == 401 {
                 // Token was invalidated early (e.g. Claude Code refreshed it
                 // after we read it) — re-read, force-refresh, and retry once.
-                creds = try loadCredentials()
+                creds = try loadCredentials(ignoreCache: true)
                 creds = try refresh(creds)
                 (status, json, retryAfter) = try callUsage(token: creds.accessToken)
             }
@@ -99,8 +99,26 @@ struct ClaudeProvider {
         }
     }
 
+    /// In-memory cache so the Keychain (which can show a permission prompt)
+    /// is touched only when the token expires or turns invalid — not on
+    /// every refresh cycle.
+    private static var cached: Credentials?
+    private static let cacheLock = NSLock()
+
     /// CLI credentials first; falls back to an account connected in-app.
-    private func loadCredentials() throws -> Credentials {
+    /// Serves from cache while the token is still valid.
+    private func loadCredentials(ignoreCache: Bool = false) throws -> Credentials {
+        Self.cacheLock.lock()
+        defer { Self.cacheLock.unlock() }
+        if !ignoreCache, let cached = Self.cached, !cached.isExpired {
+            return cached
+        }
+        let creds = try loadCredentialsUncached()
+        Self.cached = creds
+        return creds
+    }
+
+    private func loadCredentialsUncached() throws -> Credentials {
         do {
             return try readCLICredentials()
         } catch let error as FetchError where error.kind == .notConfigured {
@@ -151,6 +169,14 @@ struct ClaudeProvider {
     }
 
     private func refresh(_ creds: Credentials) throws -> Credentials {
+        let refreshed = try performRefresh(creds)
+        Self.cacheLock.lock()
+        Self.cached = refreshed
+        Self.cacheLock.unlock()
+        return refreshed
+    }
+
+    private func performRefresh(_ creds: Credentials) throws -> Credentials {
         if creds.fromApp {
             let refreshed = try AppTokenRefresh.claude(AppStoredToken(
                 accessToken: creds.accessToken,
