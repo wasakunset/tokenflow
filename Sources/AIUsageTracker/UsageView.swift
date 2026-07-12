@@ -50,7 +50,11 @@ extension View {
 struct RootView: View {
     @ObservedObject var store: UsageStore
     @ObservedObject var settings: AppSettings
-    @State private var showingSettings = false
+
+    enum Screen: Equatable {
+        case usage, settings, chart(String)
+    }
+    @State private var screen: Screen = .usage
 
     var body: some View {
         if !settings.hasCompletedWelcome {
@@ -58,10 +62,22 @@ struct RootView: View {
                 settings.hasCompletedWelcome = true
                 store.refresh(force: true)
             }
-        } else if showingSettings {
-            SettingsView(settings: settings) { showingSettings = false }
         } else {
-            UsageView(store: store, settings: settings) { showingSettings = true }
+            switch screen {
+            case .settings:
+                SettingsView(settings: settings) { screen = .usage }
+            case .chart(let provider):
+                ChartView(
+                    usage: provider == "Claude" ? store.claude : store.codex,
+                    tint: provider == "Claude" ? .claudeTint : .codexTint
+                ) { screen = .usage }
+            case .usage:
+                UsageView(
+                    store: store, settings: settings,
+                    onSettings: { screen = .settings },
+                    onShowChart: { screen = .chart($0) }
+                )
+            }
         }
     }
 }
@@ -263,6 +279,7 @@ struct UsageView: View {
     @ObservedObject var store: UsageStore
     @ObservedObject var settings: AppSettings
     var onSettings: () -> Void
+    var onShowChart: (String) -> Void
 
     var body: some View {
         VStack(spacing: 10) {
@@ -299,14 +316,16 @@ struct UsageView: View {
             ProviderCard(
                 usage: store.claude, tint: .claudeTint,
                 onHide: { settings.showClaude = false },
-                onRetry: { store.refresh(force: true) }
+                onRetry: { store.refresh(force: true) },
+                onShowChart: { onShowChart("Claude") }
             )
         }
         if settings.showCodex {
             ProviderCard(
                 usage: store.codex, tint: .codexTint,
                 onHide: { settings.showCodex = false },
-                onRetry: { store.refresh(force: true) }
+                onRetry: { store.refresh(force: true) },
+                onShowChart: { onShowChart("Codex") }
             )
         }
     }
@@ -363,9 +382,9 @@ struct ProviderCard: View {
     let tint: Color
     var onHide: () -> Void
     var onRetry: () -> Void
+    var onShowChart: () -> Void
 
     @ObservedObject private var oauth = OAuthManager.shared
-    @State private var sparklineWeek = false
 
     private var isStale: Bool { usage.note != nil }
 
@@ -422,14 +441,13 @@ struct ProviderCard: View {
 
             if let session = usage.windows.first {
                 let history = UsageHistory.shared.samples(
-                    UsageHistory.key(usage.name, session),
-                    last: sparklineWeek ? 7 * 24 * 3600 : 24 * 3600
+                    UsageHistory.key(usage.name, session), last: 24 * 3600
                 )
                 if history.count >= 2 {
                     Sparkline(samples: history, tint: tint)
                         .contentShape(Rectangle())
-                        .onTapGesture { sparklineWeek.toggle() }
-                        .help(sparklineWeek ? "Last 7 days — click for 24h" : "Last 24 hours — click for 7d")
+                        .onTapGesture(perform: onShowChart)
+                        .help("Last 24 hours — click for the full graph")
                 }
             }
 
