@@ -41,6 +41,8 @@ final class UsageStore: ObservableObject {
                 guard let self else { return }
                 if showClaude { self.claude = self.resolve("Claude", fresh: claude) }
                 if showCodex { self.codex = self.resolve("Codex", fresh: codex) }
+                UsageHistory.shared.record(self.claude)
+                UsageHistory.shared.record(self.codex)
                 NotificationManager.shared.check(self.claude)
                 NotificationManager.shared.check(self.codex)
                 self.lastUpdated = Date()

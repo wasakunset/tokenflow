@@ -105,6 +105,12 @@ struct ClaudeProvider {
     private static var cached: Credentials?
     private static let cacheLock = NSLock()
 
+    static func clearCredentialCache() {
+        cacheLock.lock()
+        cached = nil
+        cacheLock.unlock()
+    }
+
     /// CLI credentials first; falls back to an account connected in-app.
     /// Serves from cache while the token is still valid.
     private func loadCredentials(ignoreCache: Bool = false) throws -> Credentials {
@@ -119,19 +125,29 @@ struct ClaudeProvider {
     }
 
     private func loadCredentialsUncached() throws -> Credentials {
+        // Users can opt into their browser-connected account to avoid the
+        // Keychain prompt Claude Code's item triggers.
+        if AppSettings.shared.preferConnectedClaude, let creds = appCredentials() {
+            return creds
+        }
         do {
             return try readCLICredentials()
         } catch let error as FetchError where error.kind == .notConfigured {
-            guard let token = AppCredentials.load().claude else { throw error }
-            return Credentials(
-                accessToken: token.accessToken,
-                refreshToken: token.refreshToken,
-                expiresAt: token.expiresAt,
-                subscriptionType: nil,
-                raw: [:],
-                fromApp: true
-            )
+            guard let creds = appCredentials() else { throw error }
+            return creds
         }
+    }
+
+    private func appCredentials() -> Credentials? {
+        guard let token = AppCredentials.load().claude else { return nil }
+        return Credentials(
+            accessToken: token.accessToken,
+            refreshToken: token.refreshToken,
+            expiresAt: token.expiresAt,
+            subscriptionType: nil,
+            raw: [:],
+            fromApp: true
+        )
     }
 
     private func readCLICredentials() throws -> Credentials {

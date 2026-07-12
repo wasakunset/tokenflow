@@ -10,3 +10,10 @@
 - HTTP 429 backoff with cached-data fallback
 - First-run welcome with CLI detection and Keychain pre-prompt
 - Settings: hide providers, refresh interval, launch at login, notification toggle
+
+## 1.1 (unreleased)
+
+- Burn-rate prediction: warns when usage is on pace to hit 100% before the window resets
+- 24h sparklines per provider card
+- "Connect in browser instead" option for Claude Code users who prefer no Keychain prompt
+- Claude credentials cached in memory (Keychain read only on expiry)

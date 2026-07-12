@@ -42,6 +42,15 @@ final class AppSettings: ObservableObject {
     @Published var notificationsEnabled: Bool {
         didSet { defaults.set(notificationsEnabled, forKey: "notificationsEnabled") }
     }
+    /// Prefer a browser-connected Claude account over Claude Code's Keychain
+    /// item (avoids the macOS Keychain permission prompt entirely).
+    @Published var preferConnectedClaude: Bool {
+        didSet {
+            defaults.set(preferConnectedClaude, forKey: "preferConnectedClaude")
+            ClaudeProvider.clearCredentialCache()
+            onChange?()
+        }
+    }
     @Published var hasCompletedWelcome: Bool {
         didSet { defaults.set(hasCompletedWelcome, forKey: "hasCompletedWelcome") }
     }
@@ -76,6 +85,7 @@ final class AppSettings: ObservableObject {
             return [2, 3, 5, 10].contains(m) ? m : 3
         }()
         notificationsEnabled = defaults.object(forKey: "notificationsEnabled") as? Bool ?? true
+        preferConnectedClaude = defaults.bool(forKey: "preferConnectedClaude")
         hasCompletedWelcome = defaults.bool(forKey: "hasCompletedWelcome")
     }
 }

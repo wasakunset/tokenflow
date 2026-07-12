@@ -72,6 +72,7 @@ struct WelcomeView: View {
     @ObservedObject var settings: AppSettings
     var onContinue: () -> Void
 
+    @ObservedObject private var oauth = OAuthManager.shared
     private let claudeFound = ClaudeProvider.isConfigured()
     private let codexFound = CodexProvider.isConfigured()
 
@@ -90,11 +91,31 @@ struct WelcomeView: View {
             }
 
             if claudeFound {
-                Label {
-                    Text("macOS will ask permission to read Claude Code's login — choose “Always Allow” so it only asks once.")
-                        .fixedSize(horizontal: false, vertical: true)
-                } icon: {
-                    Image(systemName: "lock.shield")
+                VStack(alignment: .leading, spacing: 8) {
+                    Label {
+                        Text("macOS will ask permission to read Claude Code's login — choose “Always Allow” so it only asks once.")
+                            .fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        Image(systemName: "lock.shield")
+                    }
+                    if oauth.busy == "Claude" {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.mini)
+                            Text("Waiting for browser approval…")
+                        }
+                    } else {
+                        Button("Prefer no password prompt? Connect in browser instead") {
+                            oauth.connect("Claude") {
+                                settings.preferConnectedClaude = true
+                                onContinue()
+                            }
+                        }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                    }
+                    if let error = oauth.errors["Claude"] {
+                        Text(error).foregroundStyle(.red)
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -135,6 +156,8 @@ struct WelcomeView: View {
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
     var onBack: () -> Void
+
+    @ObservedObject private var oauth = OAuthManager.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -188,6 +211,8 @@ struct SettingsView: View {
             Toggle("Notify at 70% and 90%", isOn: $settings.notificationsEnabled)
                 .font(.callout)
 
+            claudeAccessSection
+
             Toggle("Start at login", isOn: Binding(
                 get: { settings.launchAtLogin },
                 set: { settings.launchAtLogin = $0 }
@@ -196,6 +221,39 @@ struct SettingsView: View {
         }
         .padding(16)
         .frame(width: 320)
+    }
+
+    @ViewBuilder private var claudeAccessSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Claude access")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if AppCredentials.load().claude != nil {
+                Toggle("Use browser-connected account (no Keychain prompt)",
+                       isOn: $settings.preferConnectedClaude)
+                    .font(.callout)
+            } else if oauth.busy == "Claude" {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.mini)
+                    Text("Waiting for browser approval…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Button("Connect Claude in browser…") {
+                    oauth.connect("Claude") {
+                        settings.preferConnectedClaude = true
+                    }
+                }
+                .controlSize(.small)
+                Text("Avoids the macOS Keychain prompt by using its own login.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            if let error = oauth.errors["Claude"] {
+                Text(error).font(.caption).foregroundStyle(.red)
+            }
+        }
     }
 }
 
@@ -318,7 +376,13 @@ struct ProviderCard: View {
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(Array(usage.windows.enumerated()), id: \.offset) { _, window in
-                        WindowRow(window: window, tint: tint)
+                        WindowRow(
+                            window: window,
+                            tint: tint,
+                            predictedHit: UsageHistory.shared.predictedLimitHit(
+                                provider: usage.name, window: window
+                            )
+                        )
                     }
                 }
                 // Dimmed = not live, perceivable without reading the pill.
@@ -354,6 +418,15 @@ struct ProviderCard: View {
             }
 
             Spacer()
+
+            if let session = usage.windows.first {
+                let history = UsageHistory.shared.samples(
+                    UsageHistory.key(usage.name, session), last: 24 * 3600
+                )
+                if history.count >= 2 {
+                    Sparkline(samples: history, tint: tint)
+                }
+            }
 
             if let plan = usage.plan {
                 Text(plan)
@@ -421,11 +494,43 @@ struct ProviderCard: View {
     }
 }
 
+// MARK: - Sparkline (last 24h of one window, fixed 0–100 scale)
+
+struct Sparkline: View {
+    let samples: [UsageHistory.Sample]
+    let tint: Color
+
+    var body: some View {
+        GeometryReader { geo in
+            Path { path in
+                guard samples.count >= 2,
+                      let first = samples.first, let last = samples.last,
+                      last.t > first.t else { return }
+                let span = last.t.timeIntervalSince(first.t)
+                for (i, s) in samples.enumerated() {
+                    let x = geo.size.width * (s.t.timeIntervalSince(first.t) / span)
+                    let y = geo.size.height * (1 - min(1, s.pct / 100))
+                    if i == 0 {
+                        path.move(to: CGPoint(x: x, y: y))
+                    } else {
+                        path.addLine(to: CGPoint(x: x, y: y))
+                    }
+                }
+            }
+            .stroke(tint.opacity(0.75), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+        }
+        .frame(width: 54, height: 14)
+        .help("Last 24 hours")
+    }
+}
+
 // MARK: - One limit window: label + reset inline, percent right, thin bar below
 
 struct WindowRow: View {
     let window: LimitWindow
     let tint: Color
+    /// Burn-rate projection: when usage will hit 100% (nil = no risk).
+    var predictedHit: Date? = nil
 
     private var barColor: Color { .severity(window.percent, tint: tint) }
 
@@ -471,6 +576,16 @@ struct WindowRow: View {
             }
             .frame(height: 5)
             .animation(.easeOut(duration: 0.4), value: window.percent)
+
+            if let hit = predictedHit {
+                Label {
+                    Text("on pace to hit 100% ~\(Fmt.reset(hit)) — before the reset")
+                } icon: {
+                    Image(systemName: "speedometer")
+                }
+                .font(.caption2)
+                .foregroundStyle(.orange)
+            }
         }
     }
 }
