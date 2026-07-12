@@ -1,5 +1,6 @@
-// Generates the app icon (dual usage rings on a dark squircle) as an
-// .iconset directory. Run:  swift scripts/make-icon.swift <output.iconset>
+// Generates the TokenFlow app icon: two flowing streams (coral = Claude,
+// teal = Codex) weaving across a dark squircle. Run:
+//   swift scripts/make-icon.swift <output.iconset>
 import AppKit
 
 let outDir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "AppIcon.iconset"
@@ -33,31 +34,36 @@ func drawIcon(px: CGFloat, ctx: CGContext) {
         angle: -90
     )
 
-    // Two gauge rings: coral (Claude) fuller, teal (Codex) lighter.
-    let ringRadius = rect.width * 0.155
-    let lineWidth = rect.width * 0.075
-    let offsetX = rect.width * 0.205
-    let leftCenter = CGPoint(x: rect.midX - offsetX, y: rect.midY)
-    let rightCenter = CGPoint(x: rect.midX + offsetX, y: rect.midY)
+    // Two streams flowing left → right, weaving once in the middle.
+    let lineWidth = rect.width * 0.095
+    let x0 = rect.minX + rect.width * 0.14
+    let x1 = rect.maxX - rect.width * 0.14
+    let yHigh = rect.midY + rect.height * 0.155
+    let yLow = rect.midY - rect.height * 0.155
 
-    func ring(center: CGPoint, color: NSColor, fraction: CGFloat) {
+    func stream(from yStart: CGFloat, to yEnd: CGFloat, color: NSColor) {
+        ctx.saveGState()
         ctx.setLineWidth(lineWidth)
         ctx.setLineCap(.round)
-        // Track
-        ctx.setStrokeColor(NSColor.white.withAlphaComponent(0.14).cgColor)
-        ctx.addArc(center: center, radius: ringRadius,
-                   startAngle: 0, endAngle: 2 * .pi, clockwise: false)
-        ctx.strokePath()
-        // Progress arc, from 12 o'clock going clockwise.
         ctx.setStrokeColor(color.cgColor)
-        let start = CGFloat.pi / 2
-        ctx.addArc(center: center, radius: ringRadius,
-                   startAngle: start, endAngle: start - fraction * 2 * .pi, clockwise: true)
+        // Soft glow in the stream's own color.
+        ctx.setShadow(
+            offset: .zero, blur: rect.width * 0.05,
+            color: color.withAlphaComponent(0.55).cgColor
+        )
+        ctx.move(to: CGPoint(x: x0, y: yStart))
+        ctx.addCurve(
+            to: CGPoint(x: x1, y: yEnd),
+            control1: CGPoint(x: rect.minX + rect.width * 0.48, y: yStart),
+            control2: CGPoint(x: rect.maxX - rect.width * 0.48, y: yEnd)
+        )
         ctx.strokePath()
+        ctx.restoreGState()
     }
 
-    ring(center: leftCenter, color: coral, fraction: 0.72)
-    ring(center: rightCenter, color: teal, fraction: 0.38)
+    // Teal first so the coral stream crosses over it.
+    stream(from: yLow, to: yHigh, color: teal)
+    stream(from: yHigh, to: yLow, color: coral)
 
     NSGraphicsContext.current?.restoreGraphicsState()
 }

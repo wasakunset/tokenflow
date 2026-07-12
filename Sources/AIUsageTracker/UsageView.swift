@@ -77,7 +77,7 @@ struct WelcomeView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Duometer")
+            Text("TokenFlow")
                 .font(.title3.bold())
             Text("Shows your Claude and Codex rate limits in the menu bar. It reads the logins your CLIs already saved — nothing to sign into, no tokens to paste. Your credentials never leave this Mac.")
                 .font(.callout)
@@ -291,7 +291,7 @@ struct UsageView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
-            .help("Quit Duometer")
+            .help("Quit TokenFlow")
         }
         .padding(.horizontal, 6)
         .padding(.top, 2)

@@ -4,8 +4,8 @@
 set -e
 cd "$(dirname "$0")"
 
-APP_NAME="Duometer"
-BUNDLE_ID="com.wasakunset.duometer"
+APP_NAME="TokenFlow"
+BUNDLE_ID="com.wasakunset.tokenflow"
 
 swift build -c release
 

@@ -24,7 +24,7 @@ struct AppCredentials: Codable {
     var claude: AppStoredToken?
     var codex: AppStoredToken?
 
-    static let service = "Duometer credentials"
+    static let service = "TokenFlow credentials"
 
     static func load() -> AppCredentials {
         let query: [String: Any] = [

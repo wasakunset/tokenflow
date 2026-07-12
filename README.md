@@ -2,7 +2,7 @@
   <img src="docs/icon.png" width="128" alt="App icon: two usage rings">
 </p>
 
-<h1 align="center">Duometer</h1>
+<h1 align="center">TokenFlow</h1>
 
 <p align="center">
   Claude and Codex rate limits, side by side in your macOS menu bar.<br>
@@ -28,10 +28,10 @@ Anthropic and OpenAI both meter their coding agents with a **5-hour session wind
 **Build from source** (requires macOS 13+ and Xcode or Command Line Tools):
 
 ```sh
-git clone https://github.com/wasakunset/duometer.git
-cd duometer
+git clone https://github.com/wasakunset/tokenflow.git
+cd tokenflow
 ./make-app.sh
-open "Duometer.app"    # or drag it into /Applications
+open "TokenFlow.app"    # or drag it into /Applications
 ```
 
 A Homebrew tap and notarized downloads are planned. If you download a pre-built zip from Releases instead of building it yourself, macOS Gatekeeper will warn on first open — right-click the app → **Open** → **Open**.
