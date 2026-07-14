@@ -35,7 +35,9 @@ struct ClaudeProvider {
             guard status == 200 else {
                 throw FetchError.message("usage endpoint returned \(status)")
             }
-            usage.plan = creds.subscriptionType?.capitalized
+            // Browser-connected accounts have no subscriptionType in the
+            // credential blob — ask the profile endpoint instead.
+            usage.plan = creds.subscriptionType?.capitalized ?? fetchPlan(token: creds.accessToken)
             usage.windows = Self.parseWindows(json)
         } catch {
             usage.error = "\(error)"
@@ -72,6 +74,30 @@ struct ClaudeProvider {
         if let w = window("seven_day_opus", label: "Weekly (Opus)") { windows.append(w) }
         if let w = window("seven_day_sonnet", label: "Weekly (Sonnet)") { windows.append(w) }
         return windows
+    }
+
+    private static var cachedPlan: (value: String, at: Date)?
+
+    /// Subscription name from /api/oauth/profile, cached for a day.
+    private func fetchPlan(token: String) -> String? {
+        if let cached = Self.cachedPlan, Date().timeIntervalSince(cached.at) < 24 * 3600 {
+            return cached.value
+        }
+        var req = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/profile")!)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        guard let (status, json, _) = try? HTTP.requestJSON(req), status == 200,
+              let account = json["account"] as? [String: Any] else { return nil }
+        let plan: String
+        if account["has_claude_max"] as? Bool == true {
+            plan = "Max"
+        } else if account["has_claude_pro"] as? Bool == true {
+            plan = "Pro"
+        } else {
+            plan = "Free"
+        }
+        Self.cachedPlan = (plan, Date())
+        return plan
     }
 
     private func callUsage(token: String) throws -> (Int, [String: Any], Double?) {
