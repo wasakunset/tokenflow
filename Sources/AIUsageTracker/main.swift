@@ -26,9 +26,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBarHosting: ClickThroughHostingView<MenuBarView>?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        popover.contentViewController = NSHostingController(
+        let content = NSHostingController(
             rootView: RootView(store: store, settings: settings)
         )
+        // Let the popover track the SwiftUI content's intrinsic size. Without
+        // this the popover mis-measures when the content height changes
+        // (switching to Settings/Chart, a third card appearing), which showed
+        // up as the panel opening at the wrong height/position.
+        content.sizingOptions = [.preferredContentSize]
+        popover.contentViewController = content
         popover.behavior = .transient
         popover.animates = true
 

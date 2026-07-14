@@ -492,7 +492,9 @@ struct ProviderCard: View {
         switch usage.errorKind {
         case .notConfigured:
             VStack(alignment: .leading, spacing: 8) {
-                Text("\(usage.name) isn't set up on this Mac. Connect your account in the browser, or install its CLI and log in.")
+                Text(OAuthManager.supportsConnect(usage.name)
+                    ? "\(usage.name) isn't set up on this Mac. Connect your account in the browser, or install its CLI and log in."
+                    : "\(usage.name) isn't set up on this Mac. Install the Gemini CLI and log in with `gemini`.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -505,10 +507,13 @@ struct ProviderCard: View {
                     }
                 } else {
                     HStack(spacing: 8) {
-                        Button("Connect \(usage.name)…") {
-                            oauth.connect(usage.name, onSuccess: onRetry)
+                        // Gemini has no browser OAuth flow — CLI login only.
+                        if OAuthManager.supportsConnect(usage.name) {
+                            Button("Connect \(usage.name)…") {
+                                oauth.connect(usage.name, onSuccess: onRetry)
+                            }
+                            .disabled(oauth.busy != nil)
                         }
-                        .disabled(oauth.busy != nil)
                         Button("Hide", action: onHide)
                     }
                     .controlSize(.small)

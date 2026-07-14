@@ -162,8 +162,18 @@ final class OAuthManager: ObservableObject {
     private var server: CallbackServer?
     private var timeoutTask: DispatchWorkItem?
 
+    /// Only Claude and Codex expose the browser OAuth flow the CLIs use.
+    /// Gemini is CLI-detected only, so it must never reach `connect`.
+    static func supportsConnect(_ provider: String) -> Bool {
+        provider == "Claude" || provider == "Codex"
+    }
+
     func connect(_ provider: String, onSuccess: @escaping () -> Void) {
         guard busy == nil else { return }
+        guard Self.supportsConnect(provider) else {
+            errors[provider] = "\(provider) has no browser sign-in — use its CLI."
+            return
+        }
         busy = provider
         errors[provider] = nil
 
