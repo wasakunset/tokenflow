@@ -10,6 +10,7 @@ import Foundation
 final class UsageStore: ObservableObject {
     @Published var claude = ProviderUsage(name: "Claude")
     @Published var codex = ProviderUsage(name: "Codex")
+    @Published var gemini = ProviderUsage(name: "Gemini")
     @Published var lastUpdated: Date?
     @Published var refreshing = false
 
@@ -31,20 +32,26 @@ final class UsageStore: ObservableObject {
 
         let showClaude = AppSettings.shared.showClaude
         let showCodex = AppSettings.shared.showCodex
+        let showGemini = AppSettings.shared.showGemini
         let skipClaude = !showClaude || isBackedOff("Claude")
         let skipCodex = !showCodex || isBackedOff("Codex")
+        let skipGemini = !showGemini || isBackedOff("Gemini")
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let claude = skipClaude ? nil : ClaudeProvider().fetch()
             let codex = skipCodex ? nil : CodexProvider().fetch()
+            let gemini = skipGemini ? nil : GeminiProvider().fetch()
             DispatchQueue.main.async {
                 guard let self else { return }
                 if showClaude { self.claude = self.resolve("Claude", fresh: claude) }
                 if showCodex { self.codex = self.resolve("Codex", fresh: codex) }
+                if showGemini { self.gemini = self.resolve("Gemini", fresh: gemini) }
                 UsageHistory.shared.record(self.claude)
                 UsageHistory.shared.record(self.codex)
+                UsageHistory.shared.record(self.gemini)
                 NotificationManager.shared.check(self.claude)
                 NotificationManager.shared.check(self.codex)
+                NotificationManager.shared.check(self.gemini)
                 self.lastUpdated = Date()
                 self.refreshing = false
                 self.onUpdate?()

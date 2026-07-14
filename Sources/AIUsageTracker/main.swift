@@ -4,7 +4,7 @@ import SwiftUI
 // MARK: - CLI mode: `AIUsageTracker --print` prints usage and exits.
 
 if CommandLine.arguments.contains("--print") {
-    for usage in [ClaudeProvider().fetch(), CodexProvider().fetch()] {
+    for usage in [ClaudeProvider().fetch(), CodexProvider().fetch(), GeminiProvider().fetch()] {
         print("\(usage.name)\(usage.plan.map { " (\($0))" } ?? "")")
         if let err = usage.error { print("  error: \(err)") }
         for w in usage.windows {
@@ -119,6 +119,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 percent: store.codex.primaryPercent,
                 severity: Severity(percent: store.codex.windows.map(\.percent).max()),
                 tint: .codexTint
+            ))
+        }
+        if settings.showGemini {
+            entries.append(GaugeData(
+                id: "GM",
+                percent: store.gemini.primaryPercent,
+                severity: Severity(percent: store.gemini.windows.map(\.percent).max()),
+                tint: .geminiTint
             ))
         }
         return MenuBarView(entries: entries, style: settings.menuBarStyle)

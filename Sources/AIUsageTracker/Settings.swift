@@ -36,6 +36,9 @@ final class AppSettings: ObservableObject {
     @Published var showCodex: Bool {
         didSet { defaults.set(showCodex, forKey: "showCodex"); onChange?() }
     }
+    @Published var showGemini: Bool {
+        didSet { defaults.set(showGemini, forKey: "showGemini"); onChange?() }
+    }
     @Published var refreshMinutes: Int {
         didSet { defaults.set(refreshMinutes, forKey: "refreshMinutes"); onChange?() }
     }
@@ -80,6 +83,9 @@ final class AppSettings: ObservableObject {
         menuBarStyle = MenuBarStyle(rawValue: defaults.string(forKey: "menuBarStyle") ?? "") ?? .ringsPercent
         showClaude = defaults.object(forKey: "showClaude") as? Bool ?? true
         showCodex = defaults.object(forKey: "showCodex") as? Bool ?? true
+        // Gemini defaults on only when its CLI is present, so users who don't
+        // use it aren't shown a permanent "install Gemini" card.
+        showGemini = defaults.object(forKey: "showGemini") as? Bool ?? GeminiProvider.isConfigured()
         refreshMinutes = {
             let m = defaults.integer(forKey: "refreshMinutes")
             return [2, 3, 5, 10].contains(m) ? m : 3

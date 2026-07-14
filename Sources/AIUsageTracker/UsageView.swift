@@ -5,6 +5,7 @@ import SwiftUI
 extension Color {
     static let claudeTint = Color(red: 0.851, green: 0.467, blue: 0.341)  // coral
     static let codexTint = Color(red: 0.063, green: 0.639, blue: 0.498)   // teal
+    static let geminiTint = Color(red: 0.259, green: 0.522, blue: 0.957)  // Google blue
 
     static func severity(_ percent: Double, tint: Color) -> Color {
         if percent >= 90 { return .red }
@@ -68,8 +69,8 @@ struct RootView: View {
                 SettingsView(settings: settings) { screen = .usage }
             case .chart(let provider):
                 ChartView(
-                    usage: provider == "Claude" ? store.claude : store.codex,
-                    tint: provider == "Claude" ? .claudeTint : .codexTint
+                    usage: usage(for: provider),
+                    tint: tint(for: provider)
                 ) { screen = .usage }
             case .usage:
                 UsageView(
@@ -78,6 +79,22 @@ struct RootView: View {
                     onShowChart: { screen = .chart($0) }
                 )
             }
+        }
+    }
+
+    private func usage(for provider: String) -> ProviderUsage {
+        switch provider {
+        case "Claude": return store.claude
+        case "Gemini": return store.gemini
+        default: return store.codex
+        }
+    }
+
+    private func tint(for provider: String) -> Color {
+        switch provider {
+        case "Claude": return .claudeTint
+        case "Gemini": return .geminiTint
+        default: return .codexTint
         }
     }
 }
@@ -207,6 +224,7 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
                 Toggle("Show Claude", isOn: $settings.showClaude)
                 Toggle("Show Codex", isOn: $settings.showCodex)
+                Toggle("Show Gemini", isOn: $settings.showGemini)
             }
             .font(.callout)
 
@@ -291,8 +309,8 @@ struct UsageView: View {
     }
 
     @ViewBuilder private var cards: some View {
-        if !settings.showClaude && !settings.showCodex {
-            Text("Both providers are hidden — enable one in settings.")
+        if !settings.showClaude && !settings.showCodex && !settings.showGemini {
+            Text("All providers are hidden — enable one in settings.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .padding(20)
@@ -326,6 +344,14 @@ struct UsageView: View {
                 onHide: { settings.showCodex = false },
                 onRetry: { store.refresh(force: true) },
                 onShowChart: { onShowChart("Codex") }
+            )
+        }
+        if settings.showGemini {
+            ProviderCard(
+                usage: store.gemini, tint: .geminiTint,
+                onHide: { settings.showGemini = false },
+                onRetry: { store.refresh(force: true) },
+                onShowChart: { onShowChart("Gemini") }
             )
         }
     }
