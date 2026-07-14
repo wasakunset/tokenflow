@@ -47,17 +47,6 @@ struct ChartView: View {
             if let session = usage.windows.first, samples(for: session).count >= 2 {
                 chart
                 legend
-                if let hit = UsageHistory.shared.predictedLimitHit(
-                    provider: usage.name, window: session
-                ) {
-                    Label {
-                        Text("on pace to hit 100% ~\(Fmt.reset(hit)) — before the reset")
-                    } icon: {
-                        Image(systemName: "speedometer")
-                    }
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
-                }
             } else {
                 Text("Not enough history yet — the graph fills in as the app keeps sampling every few minutes.")
                     .font(.callout)

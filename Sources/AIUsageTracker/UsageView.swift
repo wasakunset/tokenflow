@@ -422,13 +422,7 @@ struct ProviderCard: View {
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(Array(usage.windows.enumerated()), id: \.offset) { _, window in
-                        WindowRow(
-                            window: window,
-                            tint: tint,
-                            predictedHit: UsageHistory.shared.predictedLimitHit(
-                                provider: usage.name, window: window
-                            )
-                        )
+                        WindowRow(window: window, tint: tint)
                     }
                 }
                 // Dimmed = not live, perceivable without reading the pill.
@@ -582,8 +576,6 @@ struct Sparkline: View {
 struct WindowRow: View {
     let window: LimitWindow
     let tint: Color
-    /// Burn-rate projection: when usage will hit 100% (nil = no risk).
-    var predictedHit: Date? = nil
 
     private var barColor: Color { .severity(window.percent, tint: tint) }
 
@@ -629,16 +621,6 @@ struct WindowRow: View {
             }
             .frame(height: 5)
             .animation(.easeOut(duration: 0.4), value: window.percent)
-
-            if let hit = predictedHit {
-                Label {
-                    Text("on pace to hit 100% ~\(Fmt.reset(hit)) — before the reset")
-                } icon: {
-                    Image(systemName: "speedometer")
-                }
-                .font(.caption2)
-                .foregroundStyle(.orange)
-            }
         }
     }
 }

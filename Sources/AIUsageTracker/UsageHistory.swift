@@ -14,9 +14,6 @@ final class UsageHistory {
     private(set) var series: [String: [Sample]] = [:]
     private let fileURL: URL
 
-    /// Regression window for the burn rate: recent enough to react, long
-    /// enough that one heavy turn doesn't dominate.
-    private let slopeWindow: TimeInterval = 45 * 60
     private let retention: TimeInterval = 7 * 24 * 3600
 
     init() {
@@ -56,41 +53,6 @@ final class UsageHistory {
     func samples(_ key: String, last interval: TimeInterval) -> [Sample] {
         let cutoff = Date().addingTimeInterval(-interval)
         return (series[key] ?? []).filter { $0.t >= cutoff }
-    }
-
-    /// Least-squares slope over the recent window → predicted time of hitting
-    /// 100%, or nil when there's too little data, usage is flat/idle, or the
-    /// window resets before the projected hit.
-    func predictedLimitHit(provider: String, window: LimitWindow) -> Date? {
-        let recent = samples(Self.key(provider, window), last: slopeWindow)
-        guard recent.count >= 3,
-              let first = recent.first, let last = recent.last,
-              last.t.timeIntervalSince(first.t) >= 10 * 60 else { return nil }
-
-        let t0 = first.t.timeIntervalSince1970
-        let xs = recent.map { $0.t.timeIntervalSince1970 - t0 }
-        let ys = recent.map(\.pct)
-        let n = Double(recent.count)
-        let sumX = xs.reduce(0, +), sumY = ys.reduce(0, +)
-        let meanX = sumX / n, meanY = sumY / n
-        var cov = 0.0, varX = 0.0
-        for i in 0..<recent.count {
-            cov += (xs[i] - meanX) * (ys[i] - meanY)
-            varX += (xs[i] - meanX) * (xs[i] - meanX)
-        }
-        guard varX > 0 else { return nil }
-        let slope = cov / varX // %/second
-
-        // Idle threshold: under ~3%/hour isn't a pace worth warning about.
-        guard slope * 3600 >= 3 else { return nil }
-
-        let secondsToFull = (100 - last.pct) / slope
-        guard secondsToFull > 0 else { return nil }
-        let hit = last.t.addingTimeInterval(secondsToFull)
-
-        // Only meaningful if the wall arrives before the reset does.
-        if let resets = window.resetsAt, hit >= resets { return nil }
-        return hit
     }
 
     private func save() {

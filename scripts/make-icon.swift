@@ -1,16 +1,37 @@
-// Generates the TokenFlow app icon: two flowing streams (coral = Claude,
-// teal = Codex) weaving across a dark squircle. Run:
+// Generates the TokenFlow app icon: a "TF" monogram with a coral→teal
+// gradient on a dark squircle. Run:
 //   swift scripts/make-icon.swift <output.iconset>
 import AppKit
+import CoreText
 
 let outDir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "AppIcon.iconset"
 
 let coral = NSColor(calibratedRed: 0.851, green: 0.467, blue: 0.341, alpha: 1)
 let teal = NSColor(calibratedRed: 0.063, green: 0.639, blue: 0.498, alpha: 1)
 
+/// Combined glyph outline for `text`, with baseline at the origin.
+func monogramPath(_ text: String, font: NSFont) -> CGPath {
+    let attr = NSAttributedString(string: text, attributes: [.font: font])
+    let line = CTLineCreateWithAttributedString(attr)
+    let combined = CGMutablePath()
+    for run in CTLineGetGlyphRuns(line) as! [CTRun] {
+        let count = CTRunGetGlyphCount(run)
+        var glyphs = [CGGlyph](repeating: 0, count: count)
+        var positions = [CGPoint](repeating: .zero, count: count)
+        CTRunGetGlyphs(run, CFRange(location: 0, length: count), &glyphs)
+        CTRunGetPositions(run, CFRange(location: 0, length: count), &positions)
+        let ctFont = font as CTFont
+        for i in 0..<count {
+            guard let gp = CTFontCreatePathForGlyph(ctFont, glyphs[i], nil) else { continue }
+            let t = CGAffineTransform(translationX: positions[i].x, y: positions[i].y)
+            combined.addPath(gp, transform: t)
+        }
+    }
+    return combined
+}
+
 func drawIcon(px: CGFloat, ctx: CGContext) {
     let size = px
-    // macOS icon grid: artwork sits inside ~90% of the canvas.
     let inset = size * 0.05
     let rect = CGRect(x: inset, y: inset, width: size - 2 * inset, height: size - 2 * inset)
     let radius = rect.width * 0.2237
@@ -33,39 +54,32 @@ func drawIcon(px: CGFloat, ctx: CGContext) {
                    width: rect.width, height: rect.height * 0.25),
         angle: -90
     )
-
-    // Two streams flowing left → right, weaving once in the middle.
-    let lineWidth = rect.width * 0.095
-    let x0 = rect.minX + rect.width * 0.14
-    let x1 = rect.maxX - rect.width * 0.14
-    let yHigh = rect.midY + rect.height * 0.155
-    let yLow = rect.midY - rect.height * 0.155
-
-    func stream(from yStart: CGFloat, to yEnd: CGFloat, color: NSColor) {
-        ctx.saveGState()
-        ctx.setLineWidth(lineWidth)
-        ctx.setLineCap(.round)
-        ctx.setStrokeColor(color.cgColor)
-        // Soft glow in the stream's own color.
-        ctx.setShadow(
-            offset: .zero, blur: rect.width * 0.05,
-            color: color.withAlphaComponent(0.55).cgColor
-        )
-        ctx.move(to: CGPoint(x: x0, y: yStart))
-        ctx.addCurve(
-            to: CGPoint(x: x1, y: yEnd),
-            control1: CGPoint(x: rect.minX + rect.width * 0.48, y: yStart),
-            control2: CGPoint(x: rect.maxX - rect.width * 0.48, y: yEnd)
-        )
-        ctx.strokePath()
-        ctx.restoreGState()
-    }
-
-    // Teal first so the coral stream crosses over it.
-    stream(from: yLow, to: yHigh, color: teal)
-    stream(from: yHigh, to: yLow, color: coral)
-
     NSGraphicsContext.current?.restoreGraphicsState()
+
+    // "TF" monogram, gradient-filled coral → teal.
+    let font = NSFont.systemFont(ofSize: size * 0.5, weight: .heavy)
+    let path = monogramPath("TF", font: font)
+    let bb = path.boundingBoxOfPath
+    let tx = rect.midX - bb.midX
+    let ty = rect.midY - bb.midY
+
+    let cgGradient = CGGradient(
+        colorsSpace: CGColorSpaceCreateDeviceRGB(),
+        colors: [coral.cgColor, teal.cgColor] as CFArray,
+        locations: [0, 1]
+    )!
+
+    ctx.saveGState()
+    ctx.translateBy(x: tx, y: ty)
+    ctx.addPath(path)
+    ctx.clip()
+    ctx.drawLinearGradient(
+        cgGradient,
+        start: CGPoint(x: bb.minX, y: bb.maxY),
+        end: CGPoint(x: bb.maxX, y: bb.minY),
+        options: []
+    )
+    ctx.restoreGState()
 }
 
 func render(px: Int) -> Data {
